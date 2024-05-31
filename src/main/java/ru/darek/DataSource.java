@@ -29,7 +29,7 @@ public class DataSource {
         try {
             connection = DriverManager.getConnection(url);
             statement = connection.createStatement();
-            init();
+        //    init();
         } catch (SQLException e) {
             e.printStackTrace();
             throw new ApplicationInitializationException();
@@ -53,7 +53,7 @@ public class DataSource {
         }
     }
 
-    public void init() {
+ /*   public void init() {
         try {
             statement.executeUpdate(
                     "" +
@@ -78,5 +78,5 @@ public class DataSource {
             e.printStackTrace();
             throw new ApplicationInitializationException();
         }
-    }
+    } */
 }

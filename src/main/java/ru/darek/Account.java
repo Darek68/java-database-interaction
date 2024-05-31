@@ -9,15 +9,37 @@ public class Account {
     @RepositoryField
     private Long amount;
 
+
+
     @RepositoryField // TODO (name = "tp");
-    private String acctype; // acctType
+    @RepositoryFieldName(title = "account_type")
+  //  private String acctype; // acctType
+    private String acctType;
 
     @RepositoryField
     private String status;
 
+    public Account() {
+    }
     public Account(Long amount, String accountType, String status) {
         this.amount = amount;
-        this.acctype = accountType;
+      //  this.acctype = accountType;
+        this.acctType = accountType;
+        this.status = status;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public void setAmount(Long amount) {
+        this.amount = amount;
+    }
+
+  //  public void setAcctype(String acctype) { this.acctType = acctype;}
+    public void setAcctType(String acctType) { this.acctType = acctType;}
+
+    public void setStatus(String status) {
         this.status = status;
     }
 
@@ -26,7 +48,8 @@ public class Account {
         return "Account{" +
                 "id=" + id +
                 ", amount=" + amount +
-                ", accountType='" + acctype + '\'' +
+              //  ", accountType='" + acctype + '\'' +
+                ", accountType='" + acctType + '\'' +
                 ", status='" + status + '\'' +
                 '}';
     }
