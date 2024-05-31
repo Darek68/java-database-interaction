@@ -2,10 +2,6 @@ package ru.darek;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import ru.darek.for_remove.UsersDao;
-import ru.darek.for_remove.UsersDaoImpl;
-
-import java.lang.reflect.Method;
 import java.util.List;
 
 public class Application {
@@ -27,17 +23,13 @@ public class Application {
             DbMigrator dbMigrator = new DbMigrator(dataSource);
             dbMigrator.migrate();
 
-//            UsersDao usersDao = new UsersDaoImpl(dataSource);
-//            logger.info(usersDao.findAll());
-
             AbstractRepository<User> repository = new AbstractRepository<>(dataSource, User.class);
             User user = new User("bob", "123", "bob");
             User user1 = new User("zob", "321", "zorro");
             repository.create(user);
             repository.create(user1);
-//            logger.info(usersDao.findAll());
             List<User> users = repository.findAll();
-            logger.info("Все пользователи: " + (users!=null?users.toString():" нет пользователи!"));
+            logger.info("Все пользователи: " + (users!=null?users.toString():" нет пользователей!"));
             User user2 = repository.findById(2L);
             logger.info("Пользователь 2: " + (user2!=null?user2.toString():" не найден!"));
             if (user2!=null) {
@@ -52,11 +44,7 @@ public class Application {
             logger.info("Оставшиеся пользователи: " + (users!=null?users.toString():" нет пользователи!"));
             repository.deleteAll();
             users = repository.findAll();
-            logger.info("Оставшиеся пользователи: " + (users!=null?users.toString():" нет пользователи!\n"));
-
-
-//            List<User> users = repository.findAll();
-//            logger.info("Все пользователи: " + (users!=null?users.toString():" нет пользователи!"));
+            logger.info("Оставшиеся пользователи: " + (users!=null?(users.toString() + "\n"):" нет пользователи!\n"));
 
             AbstractRepository<Account> accountAbstractRepository = new AbstractRepository<>(dataSource, Account.class);
             Account account = new Account(100L, "credit", "blocked");
@@ -65,6 +53,12 @@ public class Application {
             accountAbstractRepository.create(account2);
             account2 = accountAbstractRepository.findById(2L);
             logger.info("Счет 2: " +  ((account2!=null) ? account2.toString() : " нет такого!"));
+            List<Account> accounts = accountAbstractRepository.findAll();
+            logger.info("Все счета: " + (accounts!=null?accounts.toString():" нет счетов!"));
+            accountAbstractRepository.deleteById(2L);
+            accounts = accountAbstractRepository.findAll();
+            logger.info("Все счета: " + (accounts!=null?accounts.toString():" нет счетов!"));
+
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

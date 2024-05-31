@@ -9,11 +9,8 @@ public class Account {
     @RepositoryField
     private Long amount;
 
-
-
     @RepositoryField // TODO (name = "tp");
     @RepositoryFieldName(title = "account_type")
-  //  private String acctype; // acctType
     private String acctType;
 
     @RepositoryField
@@ -23,7 +20,6 @@ public class Account {
     }
     public Account(Long amount, String accountType, String status) {
         this.amount = amount;
-      //  this.acctype = accountType;
         this.acctType = accountType;
         this.status = status;
     }
@@ -35,8 +31,6 @@ public class Account {
     public void setAmount(Long amount) {
         this.amount = amount;
     }
-
-  //  public void setAcctype(String acctype) { this.acctType = acctype;}
     public void setAcctType(String acctType) { this.acctType = acctType;}
 
     public void setStatus(String status) {

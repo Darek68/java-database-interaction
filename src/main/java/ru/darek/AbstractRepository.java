@@ -23,6 +23,9 @@ public class AbstractRepository<T> {
     private Class<T> cls;
     private Constructor<T> constructor;
     private Map<String, Method> methods;
+    private PreparedStatementsMap preparedStatementsMap;
+    private PreparedStatement psm;
+    private Map<String,PreparedStatement> ps;
 
     private PreparedStatement psCreate;
     private PreparedStatement psFindById;
@@ -56,12 +59,15 @@ public class AbstractRepository<T> {
         prepareUpdate(cls);
         prepareDeleteById(cls);
         prepareDeleteAll(cls);
+        preparedStatementsMap = new PreparedStatementsMap(dataSource,cls);
     }
 
     public void create(T entity) {
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psCreate");
         try {
             for (int i = 0; i < cachedFields.size(); i++) {
                 psCreate.setObject(i + 1, cachedFields.get(i).get(entity));
+                psm.setObject(i + 1, cachedFields.get(i).get(entity));
             }
             psCreate.executeUpdate();
         } catch (Exception e) {
