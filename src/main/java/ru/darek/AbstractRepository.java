@@ -9,12 +9,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public class AbstractRepository<T> {
@@ -22,21 +19,11 @@ public class AbstractRepository<T> {
     private DataSource dataSource;
     private Class<T> cls;
     private Constructor<T> constructor;
-    private Map<String, Method> methods;
     private PreparedStatementsMap preparedStatementsMap;
     private PreparedStatement psm;
-    private Map<String,PreparedStatement> ps;
-
-    private PreparedStatement psCreate;
-    private PreparedStatement psFindById;
-    private PreparedStatement psFindAll;
-    private PreparedStatement psUpdate;
-    private PreparedStatement psDeleteById;
-    private PreparedStatement psDeleteAll;
-
+    private Method method;
     private List<Field> cachedFields;
     private List<Field> allFields;
-    private StringBuilder query;
 
     public AbstractRepository(DataSource dataSource, Class<T> cls) {
         this.dataSource = dataSource;
@@ -51,35 +38,36 @@ public class AbstractRepository<T> {
         allFields = Arrays.stream(cls.getDeclaredFields())
                 .filter(f -> f.isAnnotationPresent(RepositoryField.class))
                 .collect(Collectors.toList());
+        cachedFields = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(RepositoryField.class))
+                .filter(f -> !f.isAnnotationPresent(RepositoryIdField.class))
+                .collect(Collectors.toList());
         logger.debug(" allFields: " +
                 allFields.stream().map(n -> n.getName()).collect(Collectors.joining(",", "{", "}")));
-        prepareCreate(cls);
-        prepareFindById(cls);
-        prepareFindAll(cls);
-        prepareUpdate(cls);
-        prepareDeleteById(cls);
-        prepareDeleteAll(cls);
-        preparedStatementsMap = new PreparedStatementsMap(dataSource,cls);
+        preparedStatementsMap = new PreparedStatementsMap(dataSource, cls);
     }
 
     public void create(T entity) {
         psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psCreate");
         try {
             for (int i = 0; i < cachedFields.size(); i++) {
-                psCreate.setObject(i + 1, cachedFields.get(i).get(entity));
-                psm.setObject(i + 1, cachedFields.get(i).get(entity));
+                method = entity.getClass().getDeclaredMethod(getMethodName("get",cachedFields.get(i).getName()));
+                if (cachedFields.get(i).getType() == Long.class) psm.setLong(i + 1, (Long) method.invoke(entity));
+                if (cachedFields.get(i).getType() == String.class) psm.setString(i + 1, (String) method.invoke(entity));
             }
-            psCreate.executeUpdate();
+            psm.executeUpdate();
         } catch (Exception e) {
+            e.printStackTrace();
             throw new ApplicationInitializationException("Не смогли записать в БД: " + e.getMessage());
         }
     }
 
     public T findById(Long id) {
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psFindById");
         T entity = null;
         try {
-            psFindById.setLong(1, id);
-            ResultSet rs = psFindById.executeQuery();
+            psm.setLong(1, id);
+            ResultSet rs = psm.executeQuery();
             if (rs.wasNull()) return entity;
             int nr = 0;
             while (rs.next()) {
@@ -88,9 +76,9 @@ public class AbstractRepository<T> {
                 logger.debug("allFields: " + allFields.stream().map(n -> n.getName()).collect(Collectors.joining(",", "{", "}")));
                 for (Field f : allFields) { // id login password nickname
                     logger.debug("f.getClass: " + f.getClass() + "    f.getName: " + f.getName());
-                    logger.debug("getter: " + getSetterName(f.getName()));
+                    logger.debug("getter: " + getMethodName("set",f.getName()));
                     logger.debug("Тип поля: " + f.getType().getTypeName());
-                    Method method = entity.getClass().getDeclaredMethod(getSetterName(f.getName()), f.getType());
+                    Method method = entity.getClass().getDeclaredMethod(getMethodName("set",f.getName()), f.getType());
                     logger.debug("method: " + method.getName());
                     nr += 1;
                     if (f.getType() == Long.class) method.invoke(entity, rs.getLong(nr));
@@ -105,17 +93,18 @@ public class AbstractRepository<T> {
     }
 
     public List<T> findAll() {
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psFindAll");
         List<T> entitys = new ArrayList<T>();
         T entity;
         int nr;
         try {
-            ResultSet rs = psFindAll.executeQuery();
+            ResultSet rs = psm.executeQuery();
             if (rs.wasNull()) return entitys;
             while (rs.next()) {
                 nr = 0;
                 entity = (T) constructor.newInstance();
                 for (Field f : allFields) { // id login password nickname
-                    Method method = entity.getClass().getDeclaredMethod(getSetterName(f.getName()), f.getType());
+                    method = entity.getClass().getDeclaredMethod(getMethodName("set",f.getName()), f.getType());
                     nr += 1;
                     if (f.getType() == Long.class) method.invoke(entity, rs.getLong(nr));
                     if (f.getType() == String.class) method.invoke(entity, rs.getObject(nr));
@@ -130,14 +119,17 @@ public class AbstractRepository<T> {
     }
 
     public void update(T entity) {
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psUpdate");
         int i;
         try {
             for (i = 0; i < cachedFields.size(); i++) {
-                psUpdate.setObject(i + 1, cachedFields.get(i).get(entity));
+                method = entity.getClass().getDeclaredMethod(getMethodName("get",cachedFields.get(i).getName()));
+                if (cachedFields.get(i).getType() == Long.class) psm.setLong(i + 1, (Long) method.invoke(entity));
+                if (cachedFields.get(i).getType() == String.class) psm.setString(i + 1, (String) method.invoke(entity));
             }
-            Method method = entity.getClass().getDeclaredMethod("getId");
-            psUpdate.setObject(i + 1, method.invoke(entity));
-            psUpdate.executeUpdate();
+            method = entity.getClass().getDeclaredMethod("getId"); // В allFields он первый, а в запросе последний
+            psm.setObject(i + 1, method.invoke(entity));
+            psm.executeUpdate();
         } catch (Exception e) {
             e.printStackTrace();
             throw new ApplicationInitializationException("Попытка изменения записи " + entity.toString() + " вызвала ошибку БД: " + e.getMessage());
@@ -145,10 +137,10 @@ public class AbstractRepository<T> {
     }
 
     public boolean deleteById(Long id) {
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psDeleteById");
         try {
-            psDeleteById.setLong(1, id);
-            //  return psDeleteById.execute();
-            return psDeleteById.executeUpdate() == 1;
+            psm.setLong(1, id);
+            return psm.executeUpdate() == 1;
         } catch (Exception e) {
             e.printStackTrace();
             throw new ApplicationInitializationException("Не удалось удалить запись: " + e.getMessage());
@@ -156,154 +148,15 @@ public class AbstractRepository<T> {
     }
 
     public void deleteAll() {
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psDeleteAll");
         try {
-            psDeleteAll.execute();
+            psm.execute();
         } catch (Exception e) {
             e.printStackTrace();
             throw new ApplicationInitializationException("Попытка удаления всех записей вызвала ошибку БД: " + e.getMessage());
         }
     }
-
-    private void prepareDeleteAll(Class<T> cls) { // deleteAll()  TRUNCATE TABLE ?
-        query = new StringBuilder("TRUNCATE TABLE ");
-        String tableName = cls.getAnnotation(RepositoryTable.class).title();
-        query.append(tableName);
-        logger.debug("prepareDeleteAll-query " + query);
-        try {
-            psDeleteAll = dataSource.getConnection().prepareStatement(query.toString());
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new ApplicationInitializationException();
-        }
-    }
-
-    private void prepareDeleteById(Class<T> cls) { // deleteById(id)  DELETE FROM Users WHERE id = ?
-        query = new StringBuilder("DELETE FROM ");
-        String tableName = cls.getAnnotation(RepositoryTable.class).title();
-        query.append(tableName).append(" WHERE id = ?");
-        logger.debug("prepareDeleteById-query " + query);
-        try {
-            psDeleteById = dataSource.getConnection().prepareStatement(query.toString());
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new ApplicationInitializationException();
-        }
-    }
-
-    private void prepareUpdate(Class<T> cls) { // UPDATE users SET login = ?, password= ?, nickname = ? WHERE id = ?;
-        query = new StringBuilder("UPDATE ");
-        String tableName = cls.getAnnotation(RepositoryTable.class).title();
-        query.append(tableName).append(" SET ");  // 'UPDATE users SET '
-        for (Field f : cachedFields) {
-            if (f.isAnnotationPresent(RepositoryFieldName.class)) {
-                query.append(f.getAnnotation(RepositoryFieldName.class).title());
-            } else {
-                query.append(f.getName());
-            }
-            query.append(" = ?, ");
-         //   query.append(f.getName()).append(" = ?, ");
-        } // 'UPDATE users SET login = ?, password= ?, nickname = ?, '
-        query.setLength(query.length() - 2);
-        query.append(" ");
-        query.append("WHERE id = ?;"); // UPDATE users SET login = ?, password= ?, nickname = ? WHERE id = ? ;
-        logger.debug("prepareUpdate-query " + query);
-        try {
-            psUpdate = dataSource.getConnection().prepareStatement(query.toString());
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new ApplicationInitializationException();
-        }
-    }
-
-    private void prepareFindAll(Class<T> cls) {
-        query = new StringBuilder("select ");
-        for (Field f : allFields) {
-            if (f.isAnnotationPresent(RepositoryFieldName.class)) {
-                query.append(f.getAnnotation(RepositoryFieldName.class).title());
-            } else {
-                query.append(f.getName());
-            }
-            query.append(", ");
-//            query.append(f.getName());
-//            query.append(", ");
-        }
-        query.setLength(query.length() - 2);
-        query.append(" from ");
-        String tableName = cls.getAnnotation(RepositoryTable.class).title();
-        query.append(tableName);
-        try {
-            psFindAll = dataSource.getConnection().prepareStatement(query.toString());
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new ApplicationInitializationException();
-        }
-    }
-
-    private void prepareFindById(Class<T> cls) {
-        query = new StringBuilder("select ");
-        for (Field f : allFields) {
-            if (f.isAnnotationPresent(RepositoryFieldName.class)) {
-                query.append(f.getAnnotation(RepositoryFieldName.class).title());
-            } else {
-                query.append(f.getName());
-            }
-            query.append(", ");
-//            query.append(f.getName());
-//            query.append(", ");
-        }
-        query.setLength(query.length() - 2);
-        query.append(" from ");
-        String tableName = cls.getAnnotation(RepositoryTable.class).title();
-        query.append(tableName).append(" where id = ?");
-        logger.debug("prepareFindById-query " + query);
-        try {
-            psFindById = dataSource.getConnection().prepareStatement(query.toString());
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new ApplicationInitializationException();
-        }
-    }
-
-    private void prepareCreate(Class<T> cls) {  // 'insert into users (login, password, nickname) values (?, ?, ?');
-        query = new StringBuilder("insert into ");
-        String tableName = cls.getAnnotation(RepositoryTable.class).title();
-        query.append(tableName).append(" (");
-        // 'insert into users ('
-        cachedFields = Arrays.stream(cls.getDeclaredFields())
-                .filter(f -> f.isAnnotationPresent(RepositoryField.class))
-                .filter(f -> !f.isAnnotationPresent(RepositoryIdField.class))
-                .collect(Collectors.toList());
-        for (Field f : cachedFields) { // TODO Сделать использование геттеров
-            f.setAccessible(true);
-        }
-        for (Field f : cachedFields) {
-            if (f.isAnnotationPresent(RepositoryFieldName.class)) {
-                query.append(f.getAnnotation(RepositoryFieldName.class).title());
-            } else {
-                query.append(f.getName());
-            }
-            query.append(", ");
-        }
-        // 'insert into users (login, password, nickname, '
-        query.setLength(query.length() - 2);
-        // 'insert into users (login, password, nickname'
-        query.append(") values (");
-        for (Field f : cachedFields) {
-            query.append("?, ");
-        }
-        // 'insert into users (login, password, nickname) values (?, ?, ?, '
-        query.setLength(query.length() - 2);
-        // 'insert into users (login, password, nickname) values (?, ?, ?'
-        query.append(");");
-        try {
-            psCreate = dataSource.getConnection().prepareStatement(query.toString());
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new ApplicationInitializationException();
-        }
-    }
-
-    private String getSetterName(String name) {
-        return "set" + name.substring(0, 1).toUpperCase() + name.substring(1);
+    private String getMethodName(String pref,String name) {
+        return pref + name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 }

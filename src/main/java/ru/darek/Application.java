@@ -29,9 +29,11 @@ public class Application {
             repository.create(user);
             repository.create(user1);
             List<User> users = repository.findAll();
-            logger.info("Все пользователи: " + (users!=null?users.toString():" нет пользователей!"));
+            logger.info("Все пользователи: " + (! users.isEmpty()?users.toString():" нет пользователей!"));
+            logger.info("Поиск пользователя 2.. " );
             User user2 = repository.findById(2L);
             logger.info("Пользователь 2: " + (user2!=null?user2.toString():" не найден!"));
+            logger.info("Апдейт пользователя 2.. " );
             if (user2!=null) {
                 user2.setNickname("Вася");
                 user2.setPassword("777");
@@ -39,25 +41,31 @@ public class Application {
                 user2 = repository.findById(2L);
                 logger.info("Пользователь 2: " + (user2 != null ? user2.toString() : " не найден!"));
             }
-            logger.info("Удалили пользователя 1 ?: " + repository.deleteById(1L));
+            logger.info("Удалили пользователя 2 ?: " + repository.deleteById(2L));
             users = repository.findAll();
-            logger.info("Оставшиеся пользователи: " + (users!=null?users.toString():" нет пользователи!"));
+            logger.info("Все пользователи: " + (! users.isEmpty()?users.toString():" нет пользователей!"));
+            logger.info("Удаляем всех пользователей.. " );
             repository.deleteAll();
             users = repository.findAll();
-            logger.info("Оставшиеся пользователи: " + (users!=null?(users.toString() + "\n"):" нет пользователи!\n"));
+            logger.info("Оставшиеся пользователи: " + (! users.isEmpty()?(users.toString() + "\n"):" нет пользователей!\n"));
 
             AbstractRepository<Account> accountAbstractRepository = new AbstractRepository<>(dataSource, Account.class);
             Account account = new Account(100L, "credit", "blocked");
             accountAbstractRepository.create(account);
             Account account2 = new Account(300L, "card", "actived");
             accountAbstractRepository.create(account2);
+            List<Account> accounts = accountAbstractRepository.findAll();
+            logger.info("Все счета: " + (! accounts.isEmpty()?accounts.toString():" нет счетов!"));
+            logger.info("Поиск счета №2... " );
             account2 = accountAbstractRepository.findById(2L);
             logger.info("Счет 2: " +  ((account2!=null) ? account2.toString() : " нет такого!"));
-            List<Account> accounts = accountAbstractRepository.findAll();
-            logger.info("Все счета: " + (accounts!=null?accounts.toString():" нет счетов!"));
-            accountAbstractRepository.deleteById(2L);
+//            accounts = accountAbstractRepository.findAll();
+//            logger.info("Все счета: " + (accounts.isEmpty()?accounts.toString():" нет счетов!"));
+            logger.info("Удаляем счет №1... " );
+         //   accountAbstractRepository.deleteById(2L);
+            logger.info("Удалили счет 1 ?: " + accountAbstractRepository.deleteById(1L));
             accounts = accountAbstractRepository.findAll();
-            logger.info("Все счета: " + (accounts!=null?accounts.toString():" нет счетов!"));
+            logger.info("Все счета: " + (! accounts.isEmpty()?accounts.toString():" нет счетов!"));
 
         } catch (Exception e) {
             e.printStackTrace();

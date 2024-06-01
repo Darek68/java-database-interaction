@@ -22,14 +22,6 @@ public class PreparedStatementsMap<T> {
     private List<Field> allFields;
     private StringBuilder query;
     private PreparedStatement ps;
-/*
- private PreparedStatement psCreate;
-    private PreparedStatement psFindById;
-    private PreparedStatement psFindAll;
-    private PreparedStatement psUpdate;
-    private PreparedStatement psDeleteById;
-    private PreparedStatement psDeleteAll;
- */
     public PreparedStatementsMap(DataSource dataSource, Class cls) {
         this.dataSource = dataSource;
         this.cls = cls;
@@ -42,7 +34,6 @@ public class PreparedStatementsMap<T> {
         prepareUpdate();
         prepareDeleteById();
         prepareDeleteAll();
-
     }
     public Map<String, PreparedStatement> getPreparedStatements() {
         return preparedStatements;
@@ -54,7 +45,6 @@ public class PreparedStatementsMap<T> {
         query.append(tableName);
         logger.debug("prepareDeleteAll-query " + query);
         try {
-         //   psDeleteAll = dataSource.getConnection().prepareStatement(query.toString());
             ps = dataSource.getConnection().prepareStatement(query.toString());
             preparedStatements.put("psDeleteAll",ps);
         } catch (SQLException e) {
@@ -69,7 +59,6 @@ public class PreparedStatementsMap<T> {
         query.append(tableName).append(" WHERE id = ?");
         logger.debug("prepareDeleteById-query " + query);
         try {
-         //   psDeleteById = dataSource.getConnection().prepareStatement(query.toString());
             ps = dataSource.getConnection().prepareStatement(query.toString());
             preparedStatements.put("psDeleteById",ps);
         } catch (SQLException e) {
@@ -95,7 +84,6 @@ public class PreparedStatementsMap<T> {
         query.append("WHERE id = ?;"); // UPDATE users SET login = ?, password= ?, nickname = ? WHERE id = ? ;
         logger.debug("prepareUpdate-query " + query);
         try {
-           // psUpdate = dataSource.getConnection().prepareStatement(query.toString());
             ps = dataSource.getConnection().prepareStatement(query.toString());
             preparedStatements.put("psUpdate",ps);
         } catch (SQLException e) {
@@ -119,7 +107,6 @@ public class PreparedStatementsMap<T> {
         String tableName = cls.getAnnotation(RepositoryTable.class).title();
         query.append(tableName);
         try {
-         //   psFindAll = dataSource.getConnection().prepareStatement(query.toString());
             ps = dataSource.getConnection().prepareStatement(query.toString());
             preparedStatements.put("psFindAll",ps);
         } catch (SQLException e) {
@@ -144,7 +131,6 @@ public class PreparedStatementsMap<T> {
         query.append(tableName).append(" where id = ?");
         logger.debug("prepareFindById-query " + query);
         try {
-           // psFindById = dataSource.getConnection().prepareStatement(query.toString());
             ps = dataSource.getConnection().prepareStatement(query.toString());
             preparedStatements.put("psFindById",ps);
         } catch (SQLException e) {
@@ -185,7 +171,6 @@ public class PreparedStatementsMap<T> {
         // 'insert into users (login, password, nickname) values (?, ?, ?'
         query.append(");");
         try {
-           // psCreate = dataSource.getConnection().prepareStatement(query.toString());
             ps = dataSource.getConnection().prepareStatement(query.toString());
             preparedStatements.put("psCreate",ps);
         } catch (SQLException e) {

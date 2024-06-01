@@ -18,6 +18,23 @@ public class Account {
 
     public Account() {
     }
+
+    public Long getId() {
+        return id;
+    }
+
+    public Long getAmount() {
+        return amount;
+    }
+
+    public String getAcctType() {
+        return acctType;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
     public Account(Long amount, String accountType, String status) {
         this.amount = amount;
         this.acctType = accountType;
