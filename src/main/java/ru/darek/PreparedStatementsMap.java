@@ -17,7 +17,7 @@ public class PreparedStatementsMap<T> {
     public static final Logger logger = LogManager.getLogger(PreparedStatementsMap.class.getName());
     private DataSource dataSource;
     private Class<T> cls;
-    private Map<String, PreparedStatement> preparedStatements = new HashMap<>();
+    private Map<RepoPreparedStatement, PreparedStatement> preparedStatements = new HashMap<>();
     private List<Field> cachedFields;
     private List<Field> allFields;
     private StringBuilder query;
@@ -35,9 +35,8 @@ public class PreparedStatementsMap<T> {
         prepareDeleteById();
         prepareDeleteAll();
     }
-    public Map<String, PreparedStatement> getPreparedStatements() {
-        return preparedStatements;
-    }
+
+    public Map<RepoPreparedStatement, PreparedStatement> getPreparedStatements() { return preparedStatements; }
 
     private void prepareDeleteAll() { // deleteAll()  TRUNCATE TABLE ?
         query = new StringBuilder("TRUNCATE TABLE ");
@@ -46,7 +45,7 @@ public class PreparedStatementsMap<T> {
         logger.debug("prepareDeleteAll-query " + query);
         try {
             ps = dataSource.getConnection().prepareStatement(query.toString());
-            preparedStatements.put("psDeleteAll",ps);
+            preparedStatements.put(RepoPreparedStatement.DELETEALL,ps);
         } catch (SQLException e) {
             e.printStackTrace();
             throw new ApplicationInitializationException();
@@ -60,7 +59,7 @@ public class PreparedStatementsMap<T> {
         logger.debug("prepareDeleteById-query " + query);
         try {
             ps = dataSource.getConnection().prepareStatement(query.toString());
-            preparedStatements.put("psDeleteById",ps);
+            preparedStatements.put(RepoPreparedStatement.DELETEBYID,ps);
         } catch (SQLException e) {
             e.printStackTrace();
             throw new ApplicationInitializationException();
@@ -85,7 +84,7 @@ public class PreparedStatementsMap<T> {
         logger.debug("prepareUpdate-query " + query);
         try {
             ps = dataSource.getConnection().prepareStatement(query.toString());
-            preparedStatements.put("psUpdate",ps);
+            preparedStatements.put(RepoPreparedStatement.UPDATE,ps);
         } catch (SQLException e) {
             e.printStackTrace();
             throw new ApplicationInitializationException();
@@ -108,7 +107,7 @@ public class PreparedStatementsMap<T> {
         query.append(tableName);
         try {
             ps = dataSource.getConnection().prepareStatement(query.toString());
-            preparedStatements.put("psFindAll",ps);
+            preparedStatements.put(RepoPreparedStatement.FINDALL,ps);
         } catch (SQLException e) {
             e.printStackTrace();
             throw new ApplicationInitializationException();
@@ -132,7 +131,7 @@ public class PreparedStatementsMap<T> {
         logger.debug("prepareFindById-query " + query);
         try {
             ps = dataSource.getConnection().prepareStatement(query.toString());
-            preparedStatements.put("psFindById",ps);
+            preparedStatements.put(RepoPreparedStatement.FINDBYID,ps);
         } catch (SQLException e) {
             e.printStackTrace();
             throw new ApplicationInitializationException();
@@ -172,7 +171,8 @@ public class PreparedStatementsMap<T> {
         query.append(");");
         try {
             ps = dataSource.getConnection().prepareStatement(query.toString());
-            preparedStatements.put("psCreate",ps);
+         //   preparedStatements.put("psCreate",ps);
+            preparedStatements.put(RepoPreparedStatement.CREATE,ps);
         } catch (SQLException e) {
             e.printStackTrace();
             throw new ApplicationInitializationException();

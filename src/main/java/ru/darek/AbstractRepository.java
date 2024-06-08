@@ -9,9 +9,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class AbstractRepository<T> {
@@ -24,6 +22,7 @@ public class AbstractRepository<T> {
     private Method method;
     private List<Field> cachedFields;
     private List<Field> allFields;
+    private Map<String, EntityField<T>> entityFields = new HashMap<>();
 
     public AbstractRepository(DataSource dataSource, Class<T> cls) {
         this.dataSource = dataSource;
@@ -45,15 +44,34 @@ public class AbstractRepository<T> {
         logger.debug(" allFields: " +
                 allFields.stream().map(n -> n.getName()).collect(Collectors.joining(",", "{", "}")));
         preparedStatementsMap = new PreparedStatementsMap(dataSource, cls);
+        initEntityFields();
     }
-
+    private void initEntityFields() {
+        String fieldName;
+        try {
+            for (Field f : this.allFields) { // id login password nickname
+                if (f.isAnnotationPresent(RepositoryFieldName.class)) {
+                    fieldName = f.getAnnotation(RepositoryFieldName.class).title();
+                } else {
+                    fieldName = f.getName();
+                }
+                entityFields.put(f.getName(),new EntityField<T>(
+                        f,
+                        fieldName,
+                        this.cls.getDeclaredMethod(getMethodName("get", f.getName())),
+                        this.cls.getDeclaredMethod(getMethodName("set", f.getName()), f.getType()),
+                        f.getType())
+                );
+            }
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
+    }
     public void create(T entity) {
-        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psCreate");
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get(RepoPreparedStatement.CREATE);
         try {
             for (int i = 0; i < cachedFields.size(); i++) {
-                method = entity.getClass().getDeclaredMethod(getMethodName("get",cachedFields.get(i).getName()));
-                if (cachedFields.get(i).getType() == Long.class) psm.setLong(i + 1, (Long) method.invoke(entity));
-                if (cachedFields.get(i).getType() == String.class) psm.setString(i + 1, (String) method.invoke(entity));
+                psm = entityFields.get(cachedFields.get(i).getName()).setValuePS(psm,i + 1,entity);
             }
             psm.executeUpdate();
         } catch (Exception e) {
@@ -63,26 +81,20 @@ public class AbstractRepository<T> {
     }
 
     public T findById(Long id) {
-        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psFindById");
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get(RepoPreparedStatement.FINDBYID);
         T entity = null;
         try {
             psm.setLong(1, id);
             ResultSet rs = psm.executeQuery();
             if (rs.wasNull()) return entity;
             int nr = 0;
+            entity = (T) constructor.newInstance();
             while (rs.next()) {
-                if (entity == null) entity = (T) constructor.newInstance();
                 logger.debug("rs: " + rs.toString());
                 logger.debug("allFields: " + allFields.stream().map(n -> n.getName()).collect(Collectors.joining(",", "{", "}")));
                 for (Field f : allFields) { // id login password nickname
-                    logger.debug("f.getClass: " + f.getClass() + "    f.getName: " + f.getName());
-                    logger.debug("getter: " + getMethodName("set",f.getName()));
-                    logger.debug("Тип поля: " + f.getType().getTypeName());
-                    Method method = entity.getClass().getDeclaredMethod(getMethodName("set",f.getName()), f.getType());
-                    logger.debug("method: " + method.getName());
                     nr += 1;
-                    if (f.getType() == Long.class) method.invoke(entity, rs.getLong(nr));
-                    if (f.getType() == String.class) method.invoke(entity, rs.getObject(nr));
+                    entity = entityFields.get(f.getName()).setValueEntity(rs,nr,entity);
                 }
             }
         } catch (Exception e) {
@@ -93,7 +105,7 @@ public class AbstractRepository<T> {
     }
 
     public List<T> findAll() {
-        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psFindAll");
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get(RepoPreparedStatement.FINDALL);
         List<T> entitys = new ArrayList<T>();
         T entity;
         int nr;
@@ -104,10 +116,8 @@ public class AbstractRepository<T> {
                 nr = 0;
                 entity = (T) constructor.newInstance();
                 for (Field f : allFields) { // id login password nickname
-                    method = entity.getClass().getDeclaredMethod(getMethodName("set",f.getName()), f.getType());
                     nr += 1;
-                    if (f.getType() == Long.class) method.invoke(entity, rs.getLong(nr));
-                    if (f.getType() == String.class) method.invoke(entity, rs.getObject(nr));
+                    entity = entityFields.get(f.getName()).setValueEntity(rs,nr,entity);
                 }
                 entitys.add(entity);
             }
@@ -119,13 +129,11 @@ public class AbstractRepository<T> {
     }
 
     public void update(T entity) {
-        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psUpdate");
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get(RepoPreparedStatement.UPDATE);
         int i;
         try {
             for (i = 0; i < cachedFields.size(); i++) {
-                method = entity.getClass().getDeclaredMethod(getMethodName("get",cachedFields.get(i).getName()));
-                if (cachedFields.get(i).getType() == Long.class) psm.setLong(i + 1, (Long) method.invoke(entity));
-                if (cachedFields.get(i).getType() == String.class) psm.setString(i + 1, (String) method.invoke(entity));
+                psm = entityFields.get(cachedFields.get(i).getName()).setValuePS(psm,i + 1,entity);
             }
             method = entity.getClass().getDeclaredMethod("getId"); // В allFields он первый, а в запросе последний
             psm.setObject(i + 1, method.invoke(entity));
@@ -137,7 +145,7 @@ public class AbstractRepository<T> {
     }
 
     public boolean deleteById(Long id) {
-        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psDeleteById");
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get(RepoPreparedStatement.DELETEBYID);
         try {
             psm.setLong(1, id);
             return psm.executeUpdate() == 1;
@@ -148,7 +156,7 @@ public class AbstractRepository<T> {
     }
 
     public void deleteAll() {
-        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get("psDeleteAll");
+        psm = (PreparedStatement) preparedStatementsMap.getPreparedStatements().get(RepoPreparedStatement.DELETEALL);
         try {
             psm.execute();
         } catch (Exception e) {
@@ -156,7 +164,8 @@ public class AbstractRepository<T> {
             throw new ApplicationInitializationException("Попытка удаления всех записей вызвала ошибку БД: " + e.getMessage());
         }
     }
-    private String getMethodName(String pref,String name) {
+
+    private String getMethodName(String pref, String name) {
         return pref + name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 }
